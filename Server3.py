@@ -541,15 +541,12 @@ def cal_active_rate():
 @app.route('/rfm', methods=['GET'])
 def cal_rfm():
     if Order.query.first_or_404():
-        #R
+        #M
         counts = Order.query.group_by(Order.member_id).count()
-        orders = Order.query.order_by(desc(Order.date)).all()
         selected_member_id = []
-        for order in orders:
-            if order.member_id not in selected_member_id:
-                selected_member_id.append(order.member_id)
-            if len(selected_member_id) >= int((counts+1)/2):
-                break
+        members = Member.query.order_by(desc(Member.monetary)).limit((counts+1)/2).all()
+        for member in members:
+            selected_member_id.append(member.id)
         print(selected_member_id)
 
         #F
@@ -557,22 +554,24 @@ def cal_rfm():
         for member_id in selected_member_id:
             count = Order.query.filter(Order.member_id==member_id).count()
             freq_dict[member_id] = count
-        print(freq_dict)
-        freq_list = sorted(freq_dict.items(), key=lambda x:x[1])
-        print("half length of list is", int(len(selected_member_id)/2))
-        member_id_list = freq_list[int(len(selected_member_id)/2):]
+        freq_list = sorted(freq_dict.items(), reverse=True, key=lambda x:x[1])
+        member_id_list = freq_list[:int((len(selected_member_id)+1)/2)]
         selected_member_id = []
         for i in range(len(member_id_list)):
             selected_member_id.append(member_id_list[i][0])
         print(selected_member_id)
 
-        #M
-        limit_length = (len(selected_member_id)+1)/2
-        members = Member.query.filter(Member.id.in_(selected_member_id)).order_by(desc(Member.monetary)).limit(limit_length).all()
+        #R(負的)
+        rect_dict = {}
+        for member_id in selected_member_id:
+            order = Order.query.filter(Order.member_id==member_id).order_by(desc(Order.date)).first()
+            rect_dict[member_id] = order.date
+        rect_list = sorted(rect_dict.items(), key=lambda x:x[1])
+        member_id_list = rect_list[:int((len(selected_member_id)+1)/2)]
+        result_id_list = [member[0] for member in member_id_list]
+        members = Member.query.filter(Member.id.in_(result_id_list)).all()
         result = members_schema.dump(members)
-        print(result)
         return jsonify(result)
-
 
 
 
